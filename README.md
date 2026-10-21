@@ -1,6 +1,7 @@
 # Floor-plan MCL + Sign Text (OCR) Observations
 
 **건물 도면만 가진 로봇이 복도의 안내판 글자(OCR)를 함께 읽으면, 위치를 더 빨리·확실하게 찾을 수 있는가?**
+> 로봇이 표지판 글자로 대략적인 위치를 찾고(Coarse), 도면과 맞춰 정밀한 위치를 찾는(Fine) 위치추정을 실제 건물에서 작게 재현한 프로젝트입니다.
 — 실제 건물(단국대 1공학관 1층)의 피난안내도와 안내판 사진 22장으로 검증했습니다.
 
 ![compare 1F](results_1F_ocr/mcl_compare.gif)
@@ -96,8 +97,7 @@
 | range only | 100% | 2.5 m |
 | range + OCR signs (측정값) | 100% | **1.0 m** |
 
-![compare 1F OCR](results_1F_ocr/mcl_compare.gif)
-<sub>실제 도면 + 측정한 OCR 관측 모델 (seed 7). 위: 거리 센서만 — 복도의 여러 지점에 가설이 흩어져 있음 / 아래: 105호 번호판을 읽자마자 정답 위치로 수렴</sub>
+<sub>(맨 위 GIF) 실제 도면 + 측정한 OCR 관측 모델 (seed 7). 위: 거리 센서만 — 복도의 여러 지점에 가설이 흩어져 있음 / 아래: 105호 번호판을 읽자마자 정답 위치로 수렴</sub>
 
 <sub>거리 센서만 쓴 경우의 성공률은 노이즈 실현에 따라 90\~100%로 변했다(앞 실험 90%). 일관된 효과는 **위치를 찾는 데 필요한 이동 거리가 2.5 m → 1.0 m로 줄어드는 것**. 표본 22장은 작으므로 p 값들은 참고용이다.</sub>
 
@@ -111,7 +111,7 @@
 | V_002 (왼쪽 → 오른쪽, 110걸음) | 127 | 15 | **0** |
 | V_001 (오른쪽 → 왼쪽, 112걸음) | 116 | 44 | **0** |
 
-정면 사진에서는 15/15 읽혔던 호실 번호판이 **보행 영상에서는 하나도 읽히지 않았다.** 확인해 본 프레임에서는 사람 눈으로도 번호를 읽을 수 없었다.
+정면 사진에서는 15/15 읽혔던 호실 번호판이 **보행 영상에서는 하나도 읽히지 않았다.**
 OCR 모델의 문제가 아니라 **카메라 배치의 문제**다.
 
 ![visibility](results_video/sign_visibility.png)
@@ -146,13 +146,13 @@ OCR 모델의 문제가 아니라 **카메라 배치의 문제**다.
 | 지도 | 도면 → 점유 격자 (0.1 m/pixel). `FloorMap.from_image()`로 실제 도면 사진 로딩 |
 | 모션 모델 | 오도메트리 (이동거리, 회전) + 가우시안 노이즈 |
 | 거리 센서 모델 | 12빔 레이캐스팅, 가우시안 + 무작위 측정 혼합. **likelihood tempering(0.2)**: 빔들이 독립이 아니므로 그대로 곱하면 과신 → 첫 스텝에 파티클이 몇 개로 붕괴(particle depletion) |
-| 표지판 관측 모델 | "label을 읽었다 = 그 표지판이 4 m 안에 있다". OCR 오독(15%)에 대비해 최소 likelihood ε=0.05 → 한 번의 오독으로 정답 가설이 사라지지 않게 함 |
+| 표지판 관측 모델 | "label을 읽었다 = 그 표지판이 일정 거리 안에 있다" (기본값: 인식 거리 4 m·오독 15%, 3장에서는 사진으로 측정한 값 3 m·5% 사용). 최소 likelihood ε=0.05 → 한 번의 오독으로 정답 가설이 사라지지 않게 함 |
 | 리샘플링 | low-variance resampling (N_eff < N/2일 때) + 매 스텝 1% 무작위 파티클 주입(복구용) |
 
 ## 실행
 
 ```bash
-pip install numpy matplotlib pillow
+pip install -r requirements.txt
 python experiment.py --seeds 20        # 비교 실험 → results/summary.md, curves.png
 python experiment.py --gif             # 비교 애니메이션 → results/mcl_compare.gif
 
@@ -164,7 +164,6 @@ python experiment.py --plan data/plan_clean.png --signs data/signs_1F.csv \
     --route "25,8.83;73,8.83;40,8.83" --out results_1F --particles 6000 --gif --gif-seed 7
 
 # OCR 평가 + 측정값 반영
-pip install easyocr
 python ocr_eval.py
 python experiment.py --plan data/plan_clean.png --signs data/signs_1F_ocr.csv \
     --route "25,8.83;73,8.83;40,8.83" --out results_1F_ocr --particles 6000 --seeds 10 \
@@ -182,3 +181,7 @@ python sign_visibility.py
 - 사진 기반으로 측정한 OCR 확률은 보행 영상에서는 성립하지 않았다(4장). 실제 시스템에서는 카메라 배치와 능동 인식이 OCR 모델보다 먼저 해결돼야 한다.
 - 축척은 보폭(0.7 m) 가정에 의존한다 (±10% 오차 가능). 표지판 위치는 도면의 방 번호 위치로 근사했다.
 - 카메라 이미지와 도면을 직접 매칭하는 학습 기반 Fine 위치추정(예: F3Loc)으로 거리 센서를 대체하는 것이 실제 과제와 더 가깝다.
+- `data/ocr_raw.json`은 원본 해상도(2880×2160) 사진으로 만든 OCR 캐시다. 저장소의 사진은 용량 때문에 1600px로 줄였으므로, 캐시를 지우고 다시 실행하면 결과가 조금 달라질 수 있다.
+
+## 작업 방식
+데이터 수집(안내판 사진 22장, 보행 영상 2개, 보폭 측정)과 실험 설계는 직접 했고, 코드 작성에는 AI 도구(Claude)의 도움을 받았다. 모든 코드는 직접 실행하고 파라미터를 바꿔 가며 결과를 확인했다.
