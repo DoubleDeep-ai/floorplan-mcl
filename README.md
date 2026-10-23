@@ -5,10 +5,16 @@
 > 로봇이 표지판 글자로 대략적인 위치를 찾고(Coarse), 도면과 맞춰 정밀한 위치를 찾는(Fine) 위치추정을 실제 건물에서 작게 재현한 프로젝트입니다.
 
 ![compare 1F](results_1F_ocr/mcl_compare.gif)
-<sub>실제 도면 위 Particle filter. 위: 거리 센서만 — 비슷한 복도 여러 곳에 위치 가설이 흩어짐 / 아래: + 안내판 OCR — 105호 번호판을 읽자마자 정답 위치로 수렴. 주황 점 = 파티클(위치 가설), 초록 = 실제 위치, X = 추정 위치</sub>
+
+> **실제 도면 위 파티클 필터**
+>
+> - **위:** 거리 센서만 사용. 비슷한 복도 여러 곳에 위치 가설이 흩어집니다.
+> - **아래:** 안내판 OCR 추가. 105호 번호판을 읽자 정답 위치로 수렴합니다.
+> - **범례:** 주황 점 = 파티클(위치 가설), 초록 = 실제 위치, X = 추정 위치
 
 ### TL;DR
-| | 결과 |
+
+| 항목 | 결과 |
 |---|---|
 | 지도 | 피난안내도 사진 1장 → 격자 지도 자동 변환 (79 m × 17 m) |
 | OCR (실제 사진 22장) | 호실 번호판 **15/15 정답, 오독 0건** (1\~2 m, 45° 이내) · 화장실 픽토그램 0/3 |
@@ -25,31 +31,41 @@
 자기 위치를 처음부터 찾는(global localization) 문제를 먼저 '최악의 경우'인 대칭 건물에서 시뮬레이션했습니다.
 
 ![compare](results/mcl_compare.gif)
-<sub>왼쪽: 거리 센서만 / 오른쪽: 거리 센서 + 안내판 OCR</sub>
+
+> 왼쪽: 거리 센서만 / 오른쪽: 거리 센서 + 안내판 OCR
 
 ### 결과 (20 seeds, 파티클 3,000개)
 
-| method | success rate | median steps to localize* | median final error (all) | median final error (successful) |
+수렴 스텝과 최종 오차는 중앙값입니다.
+
+| 방법 | 성공률 | 수렴 스텝* | 최종 오차: 전체 | 최종 오차: 성공 |
 |---|---|---|---|---|
 | range only | 60% | 9 (4.5 m) | 1.00 m | 0.10 m |
 | range + OCR signs | **95%** | **3 (1.5 m)** | **0.10 m** | 0.09 m |
 
-<sub>* localized = 정답 1 m 안의 확률 질량 > 0.5. 같은 seed에서는 정답 궤적·센서 노이즈·OCR 오독이 동일하고 표지판 사용 여부만 다르다.</sub>
+> **수렴 기준:** localized = 정답 1 m 안의 확률 질량 > 0.5. 같은 seed에서는 정답 궤적·센서 노이즈·OCR 오독이 동일하고 표지판 사용 여부만 다르다.
 
 ![curves](results/curves.png)
 
 ![snapshots](results/snapshots.png)
 
 **관찰**
+
 - 이 지도는 **180° 회전 대칭**입니다. 거리 센서와 오도메트리만으로는 실제 위치와 회전 대칭 위치를 구별할 수 없어, 필터가 반반 확률로 엉뚱한 쪽에 수렴합니다(성공률 60%, 실패 시 오차 19\~25 m). 좌우·상하 *반사* 대칭은 로봇이 회전할 때 오도메트리의 회전 방향이 반대가 되어 스스로 풀리지만, 회전 대칭은 끝까지 남습니다.
 - 안내판 관측을 더하면 **1.5 m 이동 만에** 위치를 찾고 95%가 성공합니다. 지도 구조(Fine)만으로는 모호하고, 텍스트·랜드마크(Coarse)가 그 모호성을 푸는 구조입니다.
 - 실패 1건(seed 5): OCR은 "이 표지판이 4 m 안에 있다"는 정보만 주므로, 문이 일정 간격으로 반복되는 긴 복도에서 **2 m 정도 어긋난 가설이 오래 살아남았습니다.** → 표지판의 방향(왼쪽/오른쪽 벽)이나 글자 크기로 거리까지 추정하면 개선될 여지가 있습니다.
 
 ## 2. 실제 도면: 단국대 1공학관 1층 (피난안내도 사진 → 지도)
 
-| 피난안내도 사진 | 자동 변환된 지도 (`floorplan_from_photo.py`) |
-|---|---|
-| <img src="data/evacuation_map_1F.jpg" width="380"> | <img src="data/plan_clean.png" width="420"> |
+### 피난안내도 사진
+
+![피난안내도 사진](data/evacuation_map_1F.jpg)
+
+### 자동 변환된 지도
+
+`floorplan_from_photo.py`로 변환한 결과입니다.
+
+![자동 변환된 격자 지도](data/plan_clean.png)
 
 - 변환: 어두운 무채색 픽셀 = 벽, 초록(대피로 칠)·파랑(현위치 표시) 제외 → 작은 덩어리(방 번호 상자·글자)와 얇은 선(소화전 아이콘) 제거 → 기울기 보정(0.29°) → 건물 바깥 채우기
 - 축척: 복도 끝\~끝 113걸음 × 0.7 m = 79.1 m → **0.048 m/pixel**, 건물 79 m × 17 m
@@ -57,12 +73,15 @@
 
 ![map 1F](results_1F/map.png)
 
-| method (10 seeds, 6,000 particles) | success rate | median distance to localize | median final error |
+10 seeds, 파티클 6,000개로 평가했습니다. 수렴 거리와 최종 오차는 중앙값입니다.
+
+| 방법 | 성공률 | 수렴 거리 | 최종 오차 |
 |---|---|---|---|
 | range only | 90% | 2.5 m | 0.06 m |
 | range + OCR signs | **100%** | **1.0 m** | 0.06 m |
 
 ![snapshots 1F](results_1F/snapshots.png)
+
 ![curves 1F](results_1F/curves.png)
 
 - 실제 건물은 완전 대칭이 아니라서 거리 센서만으로도 대부분 성공한다(90%). 하지만 **문 프레임이 일정 간격으로 반복되는 긴 복도** 때문에 1건(seed 7)은 끝까지 복도의 다른 지점 두 곳에 파티클이 갈라져 실패했다(위 그림 윗줄 마지막).
@@ -76,7 +95,7 @@
 
 ![ocr](results_ocr/contact_sheet.jpg)
 
-| group | photos | 정답 장소가 후보에 포함 | 유일하게 정답 |
+| 대상 | 사진 수 | 정답 후보 포함 | 정답 단독 후보 |
 |---|---|---|---|
 | 전체 | 22 | 18 (82%) | 17 (77%) |
 | 호실 번호판 (101·103·105·106·111·112) | 15 | **15 (100%)** | **15 (100%)** |
@@ -92,21 +111,23 @@
 
 **측정값을 관측 모델에 반영** (`data/signs_1F_ocr.csv`: 화장실 제외, 엘리베이터 로비 추가 / `sign_view_dist=3, p_detect=0.9, p_ocr_correct=0.95`):
 
-| method (10 seeds) | success rate | median distance to localize |
+10 seeds 결과이며, 수렴 거리는 중앙값입니다.
+
+| 방법 | 성공률 | 수렴 거리 |
 |---|---|---|
 | range only | 100% | 2.5 m |
 | range + OCR signs (측정값) | 100% | **1.0 m** |
 
-<sub>(맨 위 GIF) 실제 도면 + 측정한 OCR 관측 모델 (seed 7). 위: 거리 센서만 — 복도의 여러 지점에 가설이 흩어져 있음 / 아래: 105호 번호판을 읽자마자 정답 위치로 수렴</sub>
+> (맨 위 GIF) 실제 도면 + 측정한 OCR 관측 모델 (seed 7). 위: 거리 센서만 — 복도의 여러 지점에 가설이 흩어져 있음 / 아래: 105호 번호판을 읽자마자 정답 위치로 수렴
 
-<sub>거리 센서만 쓴 경우의 성공률은 노이즈 실현에 따라 90\~100%로 변했다(앞 실험 90%). 일관된 효과는 **위치를 찾는 데 필요한 이동 거리가 2.5 m → 1.0 m로 줄어드는 것**. 표본 22장은 작으므로 p 값들은 참고용이다.</sub>
+> 거리 센서만 쓴 경우의 성공률은 노이즈 실현에 따라 90\~100%로 변했다(앞 실험 90%). 일관된 효과는 **위치를 찾는 데 필요한 이동 거리가 2.5 m → 1.0 m로 줄어드는 것**. 표본 22장은 작으므로 p 값들은 참고용이다.
 
 ## 4. 실제 보행 영상 실험: 사진에서는 읽혔던 번호판이 영상에서는 0개
 
 복도를 양방향으로 걸으며 휴대폰을 **로봇 카메라처럼 정면을 향하게** 들고 찍은 영상 2개(720p, 각 약 1분)에서
 2 fps로 프레임 243장을 뽑아 OCR → 지도 매칭(`video_ocr.py`)을 돌렸다.
 
-| | 프레임 | OCR 글자 덩어리 | 지도 표지판과 매칭 |
+| 영상 | 프레임 | OCR 글자 덩어리 | 지도 표지판과 매칭 |
 |---|---|---|---|
 | V_002 (왼쪽 → 오른쪽, 110걸음) | 127 | 15 | **0** |
 | V_001 (오른쪽 → 왼쪽, 112걸음) | 116 | 44 | **0** |
@@ -142,11 +163,12 @@ OCR 모델의 문제가 아니라 **카메라 배치의 문제**다.
 - V_001처럼 출발 지점의 구조가 독특하면(오른쪽 끝 화장실·계단) 거리 센서만으로도 빨리 찾는다 → 표지판이 필요한 곳은 **구조가 반복되는 복도 한가운데**.
 
 **시사점 (다음에 해볼 것)**
+
 1. **카메라 방향**: 측면 카메라나 광각 카메라, 또는 로봇이 문 앞에서 고개를 돌려 보는 **능동 인식(active perception)**. 필터가 "곧 105호 앞"이라고 예측할 때만 멈추거나 돌아보게 하면 비용을 줄일 수 있다.
 2. **표지 종류**: 멀리서 보이는 돌출형 표지(화장실·비상구)는 대부분 그림 기호 → OCR이 아니라 **VLM/아이콘 인식**이 필요 (3장의 화장실 결과와 같은 결론).
 3. **해상도·프레임**: 720p·2 fps는 불리하다. 고해상도, 전체 프레임 처리, 흔들림 보정.
 
-<sub>한계: 영상 속 정답 위치는 체크포인트 없이 걸음 수와 일정 속도로 근사했다(수 m 오차 가능). 거리 센서는 실제 LiDAR가 아니라 시뮬레이션이다. 기하 추정의 번호판 크기·화각은 근사치다.</sub>
+> 한계: 영상 속 정답 위치는 체크포인트 없이 걸음 수와 일정 속도로 근사했다(수 m 오차 가능). 거리 센서는 실제 LiDAR가 아니라 시뮬레이션이다. 기하 추정의 번호판 크기·화각은 근사치다.
 
 ## 구현 포인트
 
@@ -162,29 +184,48 @@ OCR 모델의 문제가 아니라 **카메라 배치의 문제**다.
 
 ```bash
 pip install -r requirements.txt
-python experiment.py --seeds 20        # 비교 실험 → results/summary.md, curves.png
-python experiment.py --gif             # 비교 애니메이션 → results/mcl_compare.gif
+# 비교 실험 → results/summary.md, curves.png
+python experiment.py --seeds 20
+
+# 비교 애니메이션 → results/mcl_compare.gif
+python experiment.py --gif
 
 # 실제 도면
-python floorplan_from_photo.py data/evacuation_map_1F.jpg --crop 619 876 2307 1289 --steps 113
-python experiment.py --plan data/plan_clean.png --signs data/signs_1F.csv \
-    --route "25,8.83;73,8.83;40,8.83" --out results_1F --particles 6000 --seeds 10
-python experiment.py --plan data/plan_clean.png --signs data/signs_1F.csv \
-    --route "25,8.83;73,8.83;40,8.83" --out results_1F --particles 6000 --gif --gif-seed 7
+python floorplan_from_photo.py data/evacuation_map_1F.jpg \
+    --crop 619 876 2307 1289 \
+    --steps 113
+python experiment.py \
+    --plan data/plan_clean.png \
+    --signs data/signs_1F.csv \
+    --route "25,8.83;73,8.83;40,8.83" \
+    --out results_1F \
+    --particles 6000 --seeds 10
+python experiment.py \
+    --plan data/plan_clean.png \
+    --signs data/signs_1F.csv \
+    --route "25,8.83;73,8.83;40,8.83" \
+    --out results_1F \
+    --particles 6000 --gif --gif-seed 7
 
 # OCR 평가 + 측정값 반영
 python ocr_eval.py
-python experiment.py --plan data/plan_clean.png --signs data/signs_1F_ocr.csv \
-    --route "25,8.83;73,8.83;40,8.83" --out results_1F_ocr --particles 6000 --seeds 10 \
+python experiment.py \
+    --plan data/plan_clean.png \
+    --signs data/signs_1F_ocr.csv \
+    --route "25,8.83;73,8.83;40,8.83" \
+    --out results_1F_ocr \
+    --particles 6000 --seeds 10 \
     --sign-params "sign_view_dist=3,p_detect=0.9,p_ocr_correct=0.95"
 
 # 보행 영상
 python video_ocr.py data/video/V_002.mp4 --fps 2
-python video_mcl.py --video V_002 --direction LR --steps 110 --seeds 5 --particles 4000
+python video_mcl.py --video V_002 --direction LR \
+    --steps 110 --seeds 5 --particles 4000
 python sign_visibility.py
 ```
 
 ## 한계 및 다음 단계
+
 - 합성 지도는 의도적으로 대칭으로 만든 '최악의 경우'이다. 실제 건물은 완전 대칭이 아니어서 거리 센서만으로도 성공률이 더 높을 수 있다.
 - OCR 인식률은 사진 22장(호실 번호판은 1\~2 m)으로만 측정했다. 시뮬레이션의 인식 거리 3 m는 이보다 약간 낙관적인 가정이다. 더 먼 거리·저조도·움직이는 로봇 카메라에서는 낮아질 것이다.
 - 사진 기반으로 측정한 OCR 확률은 보행 영상에서는 성립하지 않았다(4장). 실제 시스템에서는 카메라 배치와 능동 인식이 OCR 모델보다 먼저 해결돼야 한다.
@@ -193,4 +234,5 @@ python sign_visibility.py
 - `data/ocr_raw.json`은 원본 해상도(2880×2160) 사진으로 만든 OCR 캐시다. 저장소의 사진은 용량 때문에 1600px로 줄였으므로, 캐시를 지우고 다시 실행하면 결과가 조금 달라질 수 있다.
 
 ## 작업 방식
+
 데이터 수집(안내판 사진 22장, 보행 영상 2개, 보폭 측정)과 실험 설계는 직접 했고, 코드 작성에는 AI 도구(Claude)의 도움을 받았다. 모든 코드는 직접 실행하고 파라미터를 바꿔 가며 결과를 확인했다.
